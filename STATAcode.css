@@ -1,0 +1,18 @@
+/* -----------div tips------------- */
+
+  div.statacode {
+    padding: 1em;
+    margin: 1em 0;
+    padding-left: 100px;
+    background-size: 70px;
+    background-repeat: no-repeat;
+    background-position: 15px center;
+    min-height: 120px;
+    color: #303960;
+    background-color: #d1eaa3;
+    border: solid 5px #d1eaa1;
+  }
+  
+  div.statacode {
+  background-image: url("mirror.png");
+}

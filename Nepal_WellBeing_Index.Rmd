@@ -1,0 +1,50 @@
+---
+title: "Well Being Index"
+output: 
+  html_document: 
+    css: STATAcode.css
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Nepal Well Being Index 
+
+MICS 2014 data is used to create this Index. Through out this document a convention is maintained where the STATA code will be provided as reference to the equivalent  R code.
+
+The STATA code provided as referecne will show up as follows[^1]:
+
+:::statacode
+Reference STATA code will appear in such boxes.
+:::
+
+[^1]: Icons made by <a href="https://www.flaticon.com/authors/xnimrodx" title="xnimrodx">xnimrodx</a> from <a href="https://www.flaticon.com/" title="Flaticon"> www.flaticon.com</a>
+
+## Libraries
+
+```{r libraries}
+library(here)
+library(tidyverse)
+library(janitor)
+library(magrittr)
+library(knitr)
+library(kableExtra)
+library(gt)
+```
+
+## Step1: Data Preparation
+
+Comment from STATA code:
+
+_Selecting main variables from WM and CH recode and merging with HL recode._  
+
+### Step1.1: CH - Children's Level (Children Under 5)
+
+
+```{r}
+
+```
+
