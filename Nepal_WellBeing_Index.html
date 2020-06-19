@@ -430,7 +430,8 @@ summary {
 <pre><code>## -- Conflicts ------ tidyverse_conflicts() --
 ## x dplyr::filter() masks stats::filter()
 ## x dplyr::lag()    masks stats::lag()</code></pre>
-<pre class="r"><code>library(janitor)</code></pre>
+<pre class="r"><code>library(haven)
+library(janitor)</code></pre>
 <pre><code>## Warning: package &#39;janitor&#39; was built under R version 3.6.3</code></pre>
 <pre><code>## 
 ## Attaching package: &#39;janitor&#39;</code></pre>
@@ -463,6 +464,36 @@ library(kableExtra)</code></pre>
 <p><em>Selecting main variables from WM and CH recode and merging with HL recode.</em></p>
 <div id="step1.1-ch---childrens-level-children-under-5" class="section level3">
 <h3>Step1.1: CH - Children’s Level (Children Under 5)</h3>
+<div class="statacode">
+<p>use “$workingfolder_in.dta”, clear //Change to the corresponding CH-file//</p>
+</div>
+<p>Note that the STATA code imports the .dta file, we have the same data in .sav format. We will be using these files.</p>
+<pre class="r"><code>ch_dta &lt;- read_sav(here(&quot;data&quot;,&quot;ch.sav&quot;))</code></pre>
+<div id="step1.1a-key-variable-for-merging" class="section level4">
+<h4>Step1.1a Key variable for merging</h4>
+<div class="statacode">
+<p>rename _all, lower</p>
+</div>
+<pre class="r"><code>ch_dta &lt;- clean_names(ch_dta)</code></pre>
+<div class="statacode">
+<p>gen double ind_id = hh1<em>100000 + hh2</em>100 + ln</p>
+<p>//Please check length of variables for a correct generation of the id variable//</p>
+<p>format ind_id %20.0g</p>
+<p>label var ind_id “Individual ID”</p>
+</div>
+<pre class="r"><code>ch_dta %&lt;&gt;%
+  mutate(
+    ind_id = structure(
+      hh1*100000 + hh2*100 + ln,
+      label = &quot;Individual ID&quot;
+    )
+  )</code></pre>
+<div class="statacode">
+<p>duplicates report ind_id</p>
+<p>duplicates tag ind_id, gen(duplicates)</p>
+<p>tab ln if duplicates!=0 //A number of children are not listed in the household//</p>
+</div>
+</div>
 </div>
 </div>
 </div>

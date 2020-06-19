@@ -28,6 +28,7 @@ Reference STATA code will appear in such boxes.
 ```{r libraries}
 library(here)
 library(tidyverse)
+library(haven)
 library(janitor)
 library(magrittr)
 library(knitr)
@@ -44,7 +45,57 @@ _Selecting main variables from WM and CH recode and merging with HL recode._
 ### Step1.1: CH - Children's Level (Children Under 5)
 
 
-```{r}
+:::statacode
+use "$workingfolder_in\ch.dta", clear //Change to the corresponding CH-file// 
+:::
+
+Note that the STATA code imports the .dta file, we have the same data in .sav format. We will be using these files.
+
+```{r dataimport_ch}
+ch_dta <- read_sav(here("data","ch.sav"))
 
 ```
+
+#### Step1.1a Key variable for merging
+
+
+:::statacode
+rename _all, lower 
+:::
+
+```{r}
+ch_dta <- clean_names(ch_dta)
+```
+
+:::statacode
+gen double ind_id = hh1*100000 + hh2*100 + ln 
+
+//Please check length of variables for a correct generation of the id variable// 
+
+format ind_id %20.0g 
+
+label var ind_id "Individual ID" 
+:::
+
+```{r Indid_ch}
+ch_dta %<>%
+  mutate(
+    ind_id = structure(
+      hh1*100000 + hh2*100 + ln,
+      label = "Individual ID"
+    )
+  )
+```
+
+
+:::statacode
+duplicates report ind_id 
+
+duplicates tag ind_id, gen(duplicates) 
+
+tab ln if duplicates!=0 //A number of children are not listed in the household// 
+:::
+
+
+
 
