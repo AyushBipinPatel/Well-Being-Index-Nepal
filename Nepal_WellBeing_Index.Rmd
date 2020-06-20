@@ -1,9 +1,15 @@
 ---
 title: "Well Being Index"
+author: "Ayush Patel"
+date: "`r Sys.Date()`"
 output: 
   html_document: 
     css: STATAcode.css
+    number_sections: yes
+    theme: flatly
     toc: yes
+    toc_depth: 4
+    toc_float: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -11,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-# Nepal Well Being Index 
+__Nepal Well Being Index __
 
 MICS 2014 data is used to create this Index. Through out this document a convention is maintained where the STATA code will be provided as reference to the equivalent  R code.
 
@@ -23,7 +29,7 @@ Reference STATA code will appear in such boxes.
 
 [^1]: Icons made by <a href="https://www.flaticon.com/authors/xnimrodx" title="xnimrodx">xnimrodx</a> from <a href="https://www.flaticon.com/" title="Flaticon"> www.flaticon.com</a>
 
-## Libraries
+# Libraries
 
 ```{r libraries}
 library(here)
@@ -36,13 +42,13 @@ library(kableExtra)
 library(gt)
 ```
 
-## Step1: Data Preparation
+# Step1: Data Preparation
 
 Comment from STATA code:
 
 _Selecting main variables from WM and CH recode and merging with HL recode._  
 
-### Step1.1: CH - Children's Level (Children Under 5)
+## Step1.1: CH - Children's Level (Children Under 5)
 
 
 :::statacode
@@ -56,7 +62,7 @@ ch_dta <- read_sav(here("data","ch.sav"))
 
 ```
 
-#### Step1.1a Key variable for merging
+### Step1.1a: Key variable for merging
 
 
 :::statacode
@@ -96,6 +102,52 @@ duplicates tag ind_id, gen(duplicates)
 tab ln if duplicates!=0 //A number of children are not listed in the household// 
 :::
 
+```{r ch_duplicate_ind_id}
+(nrow(ch_dta) == length(unique(ch_dta$ind_id)) 
+ & sum(is.na(ch_dta$ind_id)) == 0) ## Returns on True if ind_id has no duplicates
 
+# creating a table of ind_ids that are duplicatess
+table(ch_dta$ind_id) %>% 
+  as.data.frame %>% 
+  filter(Freq>1) -> ch_dta_duplicate_ind_id
 
+ch_dta %<>%
+  mutate(
+    duplicates = ind_id  %in% ch_dta_duplicate_ind_id$Var1
+  ) 
+
+ch_dta %>%
+  filter(duplicates == 1) %>% 
+  tabyl(ln, show_na = T)
+```
+
+:::statacode
+bys ind_id: gen line = (_n) 
+
+replace ind_id =  hh1*100000 + hh2*190 + line if duplicate!=0 //We assume consecutive hh line starting at 90// 
+ 
+duplicates report ind_id //We should not have any duplicate at this stage// 
+ 
+gen child_CH = 1 //Identification variable for observations in CH recode// 
+:::
+
+```{r removing_duplicates_if_any}
+ch_dta %<>%
+  group_by(ind_id) %>% 
+  mutate(line = n()) %>% 
+  ungroup()
+  
+ch_dta %<>% 
+  filter(duplicates == 1) %>% 
+  mutate(
+    ind_id = structure(
+      hh1*100000 + hh2*190 + line,
+      label = "Individual ID"
+    ),
+    child_CH = 1
+  )
+
+(nrow(ch_dta) == length(unique(ch_dta$ind_id)) 
+ & sum(is.na(ch_dta$ind_id)) == 0) ## Returns on True if ind_id has no duplicates
+```
 
