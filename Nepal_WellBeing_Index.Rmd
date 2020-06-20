@@ -40,6 +40,7 @@ library(magrittr)
 library(knitr)
 library(kableExtra)
 library(gt)
+library(anthro)
 ```
 
 # Step1: Data Preparation
@@ -150,4 +151,7 @@ ch_dta %<>%
 (nrow(ch_dta) == length(unique(ch_dta$ind_id)) 
  & sum(is.na(ch_dta$ind_id)) == 0) ## Returns on True if ind_id has no duplicates
 ```
+
+### Step 1.1b: Children Nutrition
+
 
