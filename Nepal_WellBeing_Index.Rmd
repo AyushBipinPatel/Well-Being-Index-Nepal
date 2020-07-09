@@ -16,6 +16,12 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{css ,echo = FALSE}
+h1, h2, h3 {
+  text-align: center;
+  color: #303960;
+}
+```
 
 __Nepal Well Being Index __
 
@@ -139,10 +145,10 @@ ch_dta %<>%
   ungroup()
   
 ch_dta %<>% 
-  filter(duplicates == 1) %>% 
   mutate(
     ind_id = structure(
-      hh1*100000 + hh2*190 + line,
+      ifelse(duplicates != 0,
+             hh1*100000 + hh2*190 + line, ind_id),
       label = "Individual ID"
     ),
     child_CH = 1
@@ -154,4 +160,212 @@ ch_dta %<>%
 
 ### Step 1.1b: Children Nutrition
 
+
+__Variable Sex__
+
+:::statacode
+tab hl4, miss //Check the variable for "sex" has "1" for male, "2" for female and all missing values are "."// 
+
+gen gender = hl4 
+
+desc gender 
+
+tab gender 
+
+label define gender 1"male" 2"female", replace 
+
+label values gender gender 
+:::
+
+
+```{r variable_sex_nutrition}
+str(ch_dta$hl4)
+
+ch_dta %<>%
+  mutate(
+    gender = structure(
+      hl4,
+      labels = c("male"  = 1, "female" = 2) 
+    )
+  )
+
+str(ch_dta$gender)
+```
+
+__Variable Age__
+
+:::statacode
+ta cage,m //Check all missing values are "."// 
+
+ta caged,m //Check all missing values are "."// 
+
+codebook cage caged //Check unit of measure – in this case age is measured in months// 
+
+clonevar age_months = cage  
+
+clonevar age_days = caged 
+
+replace age_months = . if cage==99 //No missing data here// 
+
+gen str6 ageunit = "days" //We define the unit of measure, in this case age is measured in months, otherwise please change to ageunit = "days"// 
+lab var ageunit "Days" 
+:::
+
+
+```{r variable_age_nutrition}
+sum(is.na(ch_dta$cage))
+
+sum(is.na(ch_dta$caged))
+
+ch_dta %<>%
+  mutate(
+    age_months = ifelse(cage==99, NA, cage),
+    age_days = caged,
+    ageunit = structure("days", label = "Days")
+  )
+```
+
+__Variable body weight[^2]__
+
+[^2]: It must be in kilograms
+
+:::statacode
+ta an3, miss //Check all missing values are "."//  
+
+codebook an3 //Check unit of measure – in this case weight is measured in kilograms// 
+
+clonevar weight = an3  
+
+desc weight  
+
+replace weight = .  if an3>=99 //All missing values or out of range are replaced as "."// 
+
+tab an2 an3 if an3>=99 | an3==., miss //an2: result of the measurement// summ weight 
+:::
+
+```{r variable_bodyweight_nutrition}
+sum(is.na(ch_dta$an3))
+
+str(ch_dta$an3)
+
+ch_dta %<>%
+  mutate(
+    weight = ifelse(an3 >=99, NA, an3)
+  )
+
+ch_dta %>% 
+  filter(an3 >=99 | is.na(an3)) %>% 
+  tabyl(an2, an3,show_na = T) %>%
+  knitr::kable()%>%
+  kableExtra::kable_styling()
+  
+  
+  
+  
+  
+```
+
+
+__Variable height[^3]__
+
+[^3]: It mus be in centimeters
+
+:::statacode
+ta an4, miss //Check all missing values are "."//  
+
+codebook an4 //Check unit of measure – in this case age is measured in centimetres// 
+
+clonevar height = an4 
+
+desc height  
+
+replace height = . if an4>=999 //All missing values or out of range are replaced as "."// 
+
+summ height ## Not sure what this command means
+
+codebook an4a gen measure = "l" if an4a==1 //Child measured lying down// 
+replace measure = "h" if an4a==2 //Child measured standing up// 
+
+replace measure = " " if an4a==. // No information  
+
+replace measure = " " if an4a==9 //Replace with " " if unknown or missing//
+
+:::
+
+
+```{r varible_height_nutrition}
+sum(is.na(ch_dta$an4))
+
+str(ch_dta$an4)
+
+ch_dta %<>%
+  mutate(
+    height = ifelse(an4 >= 999, NA, an4),
+    measure = case_when(
+      is.na(an4a) ~ "",
+      an4a == 9 ~ "",
+      an4a == 1 ~ "l",
+      an4a == 2 ~ "h"
+    )
+  )
+```
+
+
+:::statacode
+tab an2 an4 if an4>=999 | an4==., miss  
+
+tab measure,m 
+
+:::
+
+```{r tabs_height_variables}
+
+ch_dta %>% 
+  filter(an4 >= 999 | is.na(an4)) %>% 
+  tabyl(an2, an4, show_na = T)%>%
+  knitr::kable()%>%
+  kableExtra::kable_styling()
+  
+ch_dta %>% 
+  tabyl(measure, show_na = T) %>%
+  knitr::kable()%>%
+  kableExtra::kable_styling()
+
+```
+
+__Variable Oedema__
+
+:::statcode
+gen str1 oedema = "n"  
+
+*replace oedema = "y" if an5==1 
+
+*replace oedema = " " if an5==3 | an5==7 | an5==9 | an5==. 
+
+desc oedema
+:::
+
+
+Just got to learn from Dr C. Oldiges that * is the R equivalent of #
+
+```{r variable_oedema}
+ch_dta %<>%
+  mutate(
+    oedema = "n"
+  )
+
+```
+
+__Variable Smpling weight__
+
+:::statcode
+clonevar  sw = chweight 
+:::
+
+```{r varible_samplingweight}
+ch_dta %<>%
+  mutate(
+    sw = chweight
+  )
+```
 
