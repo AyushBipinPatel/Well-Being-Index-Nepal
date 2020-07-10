@@ -11,7 +11,7 @@
 
 <meta name="author" content="Ayush Patel" />
 
-<meta name="date" content="2020-07-09" />
+<meta name="date" content="2020-07-10" />
 
 <title>Well Being Index</title>
 
@@ -1540,7 +1540,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Well Being Index</h1>
 <h4 class="author">Ayush Patel</h4>
-<h4 class="date">2020-07-09</h4>
+<h4 class="date">2020-07-10</h4>
 
 </div>
 
@@ -1848,12 +1848,13 @@ NA
   mutate(
     height = ifelse(an4 &gt;= 999, NA, an4),
     measure = case_when(
-      is.na(an4a) ~ &quot;&quot;,
-      an4a == 9 ~ &quot;&quot;,
+      is.na(an4a) ~ NA_character_,#Notice the deviation from the stata script
+      an4a == 9 ~ NA_character_,#Notice the deviation from the stata script
       an4a == 1 ~ &quot;l&quot;,
       an4a == 2 ~ &quot;h&quot;
     )
   )</code></pre>
+<p><strong>The above mentioned deviation of using <code>NA</code> instead of &quot; &quot; is delibrate and retrospective. The <code>anthro_zscores()</code> does not take any other values that <code>&quot;l&quot; | &quot;L&quot; | &quot;H&quot; | &quot;h&quot; | NA</code> for the <code>measure</code> argument.</strong></p>
 <div class="statacode">
 <p>tab an2 an4 if an4&gt;=999 | an4==., miss</p>
 <p>tab measure,m</p>
@@ -1973,19 +1974,12 @@ n
 <th style="text-align:right;">
 percent
 </th>
+<th style="text-align:right;">
+valid_percent
+</th>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td style="text-align:left;">
-</td>
-<td style="text-align:right;">
-478
-</td>
-<td style="text-align:right;">
-0.0844076
-</td>
-</tr>
 <tr>
 <td style="text-align:left;">
 h
@@ -1995,6 +1989,9 @@ h
 </td>
 <td style="text-align:right;">
 0.5629525
+</td>
+<td style="text-align:right;">
+0.6148505
 </td>
 </tr>
 <tr>
@@ -2007,9 +2004,261 @@ l
 <td style="text-align:right;">
 0.3526399
 </td>
+<td style="text-align:right;">
+0.3851495
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+NA
+</td>
+<td style="text-align:right;">
+478
+</td>
+<td style="text-align:right;">
+0.0844076
+</td>
+<td style="text-align:right;">
+NA
+</td>
 </tr>
 </tbody>
 </table>
+<p><strong>Variable Oedema</strong></p>
+<div class="statacode">
+<p>gen str1 oedema = “n”</p>
+<p>*replace oedema = “y” if an5==1</p>
+<p>*replace oedema = &quot; &quot; if an5==3 | an5==7 | an5==9 | an5==.</p>
+<p>desc oedema</p>
+</div>
+<p>Just got to learn from Dr C. Oldiges that * is the R equivalent of #</p>
+<pre class="r"><code>ch_dta %&lt;&gt;%
+  mutate(
+    oedema = &quot;n&quot;
+  )</code></pre>
+<p><strong>Variable Smpling weight</strong></p>
+<div class="statacode">
+<p>clonevar sw = chweight</p>
+</div>
+<pre class="r"><code>ch_dta %&lt;&gt;%
+  mutate(
+    sw = chweight
+  )</code></pre>
+<p><strong>Using the <code>{anthro}</code> package: equivalent ot running the ado file</strong></p>
+<pre class="r"><code>pmap(list(sex = ch_dta$gender,
+  age = ch_dta$age_days,
+  is_age_in_month = FALSE,
+  weight = ch_dta$weight,
+  lenhei = ch_dta$height,
+  measure = ch_dta$measure,
+  oedema = ch_dta$oedema),
+  anthro_zscores) -&gt; test
+
+reduce(test,rbind) -&gt; test
+
+head(test)</code></pre>
+<pre><code>##   clenhei     cbmi cmeasure csex  zlen flen  zwei fwei  zwfl fwfl  zbmi fbmi
+## 1    68.9 18.53720        l    1 -0.72    0  0.22    0  0.89    0  0.86    0
+## 2    82.2 18.20378        h    1 -1.91    0 -0.07    0  1.31    0  1.62    0
+## 3    63.0 19.40035        l    2 -0.24    0  1.03    0  1.62    0  1.57    0
+## 4    68.2 16.55473        l    1 -3.24    0 -2.08    0 -0.49    0 -0.17    0
+## 5    72.1 15.58169        l    1 -3.59    0 -2.60    0 -1.15    0 -0.49    0
+## 6    82.5 15.13315        h    2 -4.03    0 -2.95    0 -0.52    0 -0.14    0
+##   zhc fhc zac fac zts fts zss fss
+## 1  NA  NA  NA  NA  NA  NA  NA  NA
+## 2  NA  NA  NA  NA  NA  NA  NA  NA
+## 3  NA  NA  NA  NA  NA  NA  NA  NA
+## 4  NA  NA  NA  NA  NA  NA  NA  NA
+## 5  NA  NA  NA  NA  NA  NA  NA  NA
+## 6  NA  NA  NA  NA  NA  NA  NA  NA</code></pre>
+<pre class="r"><code>names(test)</code></pre>
+<pre><code>##  [1] &quot;clenhei&quot;  &quot;cbmi&quot;     &quot;cmeasure&quot; &quot;csex&quot;     &quot;zlen&quot;     &quot;flen&quot;    
+##  [7] &quot;zwei&quot;     &quot;fwei&quot;     &quot;zwfl&quot;     &quot;fwfl&quot;     &quot;zbmi&quot;     &quot;fbmi&quot;    
+## [13] &quot;zhc&quot;      &quot;fhc&quot;      &quot;zac&quot;      &quot;fac&quot;      &quot;zts&quot;      &quot;fts&quot;     
+## [19] &quot;zss&quot;      &quot;fss&quot;</code></pre>
+<p><strong>Notice the deviations from stata file, there is no need to use the <code>ageunit</code> variable as the <code>anthro_zscores()</code> function has an argument,<code>is_age_in_month</code>, that takes a logical for age unit. Secondly, there is no provision for an argument in the <code>anthro_zscores()</code> for the <code>sw</code> variable, hence I have not useed it.</strong></p>
+<p>Now binding the <code>test</code> object to the <code>ch_dta</code> object.</p>
+<pre class="r"><code>bind_cols(ch_dta, test) -&gt; ch_dta</code></pre>
+<pre><code>## New names:
+## * zbmi -&gt; zbmi...241
+## * zbmi -&gt; zbmi...291</code></pre>
+<div class="statacode">
+<p>gen z_scorewa = _zwei</p>
+<p>replace z_scorewa = . if _fwei==1</p>
+<p>lab var z_scorewa “z-score weight-for-age WHO”</p>
+</div>
+<pre class="r"><code>ch_dta %&lt;&gt;%
+  mutate(
+    z_scorewa = structure(
+      ifelse(fwei == 1, NA, zwei),
+      label = &quot;z-score weight-for-age WHO&quot;)
+    )</code></pre>
+<div class="statacode">
+<p>gen underwa2 = (z_scorewa &lt; -2.0) //Takes value 1 if the child is under 2 stdev below the median and 0 otherwise//</p>
+<p>replace underwa2 = . if z_scorewa==.</p>
+<p>lab var underwa2 “Child is undernourished (weight-for-age) 2sd - WHO”</p>
+</div>
+<pre class="r"><code>ch_dta %&lt;&gt;%
+  mutate(
+    underwa2 = structure(
+      ifelse(
+        is.na(z_scorewa),
+        NA,
+        z_scorewa &lt; -2.0
+      ),
+      label = &quot;Child is undernourished (weight-for-age) 2sd-WHO&quot;
+    )
+  )</code></pre>
+<div class="statacode">
+<p>gen underwa3 = (z_scorewa &lt; -3.0) //Takes value 1 if the child is under 3 stdev below the median and 0 otherwise//</p>
+<p>replace underwa3 = . if z_scorewa==.</p>
+<p>lab var underwa3 “Child is undernourished (weight-for-age) 3sd - WHO”</p>
+</div>
+<pre class="r"><code>ch_dta %&lt;&gt;%
+  mutate(
+    underwa3 = structure(
+      ifelse(
+        is.na(z_scorewa),
+        NA,
+        z_scorewa &lt; -3.0
+      ),
+      label = &quot;Child is undernourished (weight-for-age) 3sd-WHO&quot;
+    )
+  )</code></pre>
+<div class="statacode">
+<p>gen stunting = (_zlen &lt; -2.0)</p>
+<p>replace stunting = . if _zlen == . | _flen==1</p>
+<p>lab var stunting “Child is undernourished (lenght/height-for-age) 2sd - WHO”</p>
+<p>gen stunting3 = (_zlen &lt; -3.0)</p>
+<p>replace stunting3 = . if _zlen == . | _flen==1</p>
+<p>lab var stunting3 “Child is undernourished (lenght/height-for-age) 3sd - WHO”</p>
+</div>
+<pre class="r"><code>ch_dta %&lt;&gt;%
+  mutate(
+    stunting = structure(
+      ifelse(
+        flen == 1| is.na(zlen),
+        NA,
+        zlen &lt; -2.0
+      ),
+      label = &quot;Chlid is undernourished (length/height-for-age 2sd-WHO)&quot;
+    ),
+  stunting3 =structure(
+      ifelse(
+        flen == 1| is.na(zlen),
+        NA,
+        zlen &lt; -3.0
+      ),
+      label = &quot;Chlid is undernourished (length/height-for-age 3sd-WHO)&quot;
+    )
+  )</code></pre>
+<div class="statacode">
+<p>gen wasting = (_zwfl &lt; - 2.0)</p>
+<p>replace wasting = . if _zwfl == . | _fwfl == 1</p>
+<p>lab var wasting “Child is undernourished (weight-for-lenght/height) 2sd - WHO”</p>
+<p>gen wasting3 = (_zwfl &lt; - 3.0)</p>
+<p>replace wasting3 = . if _zwfl == . | _fwfl == 1</p>
+<p>lab var wasting3 “Child is undernourished (weight-for-lenght/height) 3sd - WHO”</p>
+</div>
+<pre class="r"><code>ch_dta %&lt;&gt;%
+  mutate(
+    wasting = structure(
+      ifelse(
+        (fwfl == 1| is.na(zwfl)),
+        NA,
+        zlen &lt; -2.0
+      ),
+      label = &quot;Child is undernourished (weight-for-lenght/height) 3sd - WHO&quot;
+    ),
+  wasting3 =structure(
+      ifelse(
+        (fwfl == 1| is.na(zwfl)),
+        NA,
+        zlen &lt; -3.0
+      ),
+      label = &quot;Child is undernourished (weight-for-lenght/height) 3sd - WHO&quot;
+    )
+  )</code></pre>
+<div class="statacode">
+<p>keep ind_id hl4 cage hh1 hh2 ln chweight child_CH z_score* under* stun* wast* _*</p>
+<p>order ind_id hl4 cage hh1 hh2 ln chweight child_CH z_score* under*</p>
+</div>
+<pre class="r"><code>ch_dta %&gt;% 
+  select(
+    ind_id,hl4,cage,hh1,hh2,ln,chweight,
+    child_CH, dplyr::starts_with(&quot;z_score&quot;),
+    dplyr::starts_with(&quot;under&quot;),dplyr::starts_with(&quot;stun&quot;),
+    dplyr::starts_with(&quot;wast&quot;),clenhei:fss
+  ) %&gt;% 
+  write_csv(here(&quot;data&quot;,&quot;npl_CH.csv&quot;))</code></pre>
+<p>Taking means (non weighted) of underwa, wasting and stunting for comparision.</p>
+<pre class="r"><code>ch_dta %&gt;% 
+  summarise(
+    mean_z_Scorewa = mean(z_scorewa, na.rm = T),
+    mean_underwa2 = mean(underwa2, na.rm = T),
+    mean_underwa3 = mean(underwa3, na.rm = T),
+    mean_stunting = mean(stunting, na.rm = T),
+    mean_stunting3 = mean(stunting3, na.rm = T),
+    mean_wasting = mean(wasting, na.rm = T),
+    mean_wasting3 = mean(wasting3, na.rm = T),
+  ) %&gt;% 
+  knitr::kable()%&gt;%
+  kableExtra::kable_styling()%&gt;%
+  scroll_box(width = &quot;100%&quot;, height = &quot;400px&quot;)</code></pre>
+<div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:400px; overflow-x: scroll; width:100%; ">
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+mean_z_Scorewa
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+mean_underwa2
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+mean_underwa3
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+mean_stunting
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+mean_stunting3
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+mean_wasting
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+mean_wasting3
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+-1.390149
+</td>
+<td style="text-align:right;">
+0.2974212
+</td>
+<td style="text-align:right;">
+0.0848138
+</td>
+<td style="text-align:right;">
+0.4100817
+</td>
+<td style="text-align:right;">
+0.1831452
+</td>
+<td style="text-align:right;">
+0.4120172
+</td>
+<td style="text-align:right;">
+0.1853297
+</td>
+</tr>
+</tbody>
+</table>
+</div>
 </div>
 </div>
 </div>

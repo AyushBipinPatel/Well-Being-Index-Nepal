@@ -302,14 +302,15 @@ ch_dta %<>%
   mutate(
     height = ifelse(an4 >= 999, NA, an4),
     measure = case_when(
-      is.na(an4a) ~ "",
-      an4a == 9 ~ "",
+      is.na(an4a) ~ NA_character_,#Notice the deviation from the stata script
+      an4a == 9 ~ NA_character_,#Notice the deviation from the stata script
       an4a == 1 ~ "l",
       an4a == 2 ~ "h"
     )
   )
 ```
 
+__The above mentioned deviation of using `NA` instead of " " is delibrate and retrospective. The `anthro_zscores()` does not take any other values that `"l" | "L" | "H" | "h" | NA` for the `measure` argument.__
 
 :::statacode
 tab an2 an4 if an4>=999 | an4==., miss  
@@ -335,7 +336,8 @@ ch_dta %>%
 
 __Variable Oedema__
 
-:::statcode
+
+:::statacode
 gen str1 oedema = "n"  
 
 *replace oedema = "y" if an5==1 
@@ -358,7 +360,7 @@ ch_dta %<>%
 
 __Variable Smpling weight__
 
-:::statcode
+:::statacode
 clonevar  sw = chweight 
 :::
 
@@ -367,5 +369,211 @@ ch_dta %<>%
   mutate(
     sw = chweight
   )
+```
+
+
+__Using the `{anthro}` package: equivalent ot running the ado file__
+
+
+```{r}
+pmap(list(sex = ch_dta$gender,
+  age = ch_dta$age_days,
+  is_age_in_month = FALSE,
+  weight = ch_dta$weight,
+  lenhei = ch_dta$height,
+  measure = ch_dta$measure,
+  oedema = ch_dta$oedema),
+  anthro_zscores) -> test
+
+reduce(test,rbind) -> test
+
+head(test)
+
+names(test)
+```
+
+__Notice the deviations from stata file, there is no need to use the `ageunit` variable as the `anthro_zscores()` function has an argument,`is_age_in_month`, that takes a logical for age unit. Secondly, there is no provision for an argument in the `anthro_zscores()` for the `sw` variable, hence I have not useed it.__
+
+Now binding the `test` object to the `ch_dta` object.
+
+```{r}
+bind_cols(ch_dta, test) -> ch_dta
+```
+
+:::statacode
+gen z_scorewa = _zwei 
+
+replace z_scorewa = . if _fwei==1  
+
+lab var z_scorewa "z-score weight-for-age WHO" 
+:::
+
+
+```{r zscorewa_nutrition}
+ch_dta %<>%
+  mutate(
+    z_scorewa = structure(
+      ifelse(fwei == 1, NA, zwei),
+      label = "z-score weight-for-age WHO")
+    )
+```
+
+
+:::statacode
+gen underwa2 = (z_scorewa < -2.0) //Takes value 1 if the child is under 2 stdev below the median and 0 otherwise// 
+
+replace underwa2 = . if z_scorewa==. 
+
+lab var underwa2  "Child is undernourished (weight-for-age) 2sd - WHO"
+:::
+
+```{r underweight_nutrition}
+ch_dta %<>%
+  mutate(
+    underwa2 = structure(
+      ifelse(
+        is.na(z_scorewa),
+        NA,
+        z_scorewa < -2.0
+      ),
+      label = "Child is undernourished (weight-for-age) 2sd-WHO"
+    )
+  )
+```
+
+:::statacode
+gen underwa3 = (z_scorewa < -3.0) //Takes value 1 if the child is under 3 stdev below the median and 0 otherwise// 
+
+replace underwa3 = . if z_scorewa==. 
+
+lab var underwa3  "Child is undernourished (weight-for-age) 3sd - WHO" 
+:::
+
+```{r ultrapoverty_nutrition}
+ch_dta %<>%
+  mutate(
+    underwa3 = structure(
+      ifelse(
+        is.na(z_scorewa),
+        NA,
+        z_scorewa < -3.0
+      ),
+      label = "Child is undernourished (weight-for-age) 3sd-WHO"
+    )
+  )
+```
+
+:::statacode
+gen stunting = (_zlen < -2.0) 
+
+replace stunting = . if _zlen == . | _flen==1 
+
+lab var stunting "Child is undernourished (lenght/height-for-age) 2sd - WHO" 
+
+gen stunting3 = (_zlen < -3.0) 
+
+replace stunting3 = . if _zlen == . | _flen==1 
+
+lab var stunting3 "Child is undernourished (lenght/height-for-age) 3sd - WHO"
+:::
+
+```{r stunting_nutrition}
+ch_dta %<>%
+  mutate(
+    stunting = structure(
+      ifelse(
+        flen == 1| is.na(zlen),
+        NA,
+        zlen < -2.0
+      ),
+      label = "Chlid is undernourished (length/height-for-age 2sd-WHO)"
+    ),
+  stunting3 =structure(
+      ifelse(
+        flen == 1| is.na(zlen),
+        NA,
+        zlen < -3.0
+      ),
+      label = "Chlid is undernourished (length/height-for-age 3sd-WHO)"
+    )
+  )
+```
+
+
+:::statacode
+gen wasting = (_zwfl < - 2.0) 
+
+replace wasting = . if _zwfl == . | _fwfl == 1 
+
+lab var wasting  "Child is undernourished (weight-for-lenght/height) 2sd - WHO" 
+
+gen wasting3 = (_zwfl < - 3.0) 
+
+replace wasting3 = . if _zwfl == . | _fwfl == 1 
+
+lab var wasting3  "Child is undernourished (weight-for-lenght/height) 3sd - WHO" 
+:::
+
+```{r wasting_nutrition}
+ch_dta %<>%
+  mutate(
+    wasting = structure(
+      ifelse(
+        (fwfl == 1| is.na(zwfl)),
+        NA,
+        zlen < -2.0
+      ),
+      label = "Child is undernourished (weight-for-lenght/height) 3sd - WHO"
+    ),
+  wasting3 =structure(
+      ifelse(
+        (fwfl == 1| is.na(zwfl)),
+        NA,
+        zlen < -3.0
+      ),
+      label = "Child is undernourished (weight-for-lenght/height) 3sd - WHO"
+    )
+  )
+
+```
+
+:::statacode
+keep  ind_id hl4 cage hh1 hh2 ln chweight child_CH z_score* under* stun* wast* _*  
+
+order ind_id hl4 cage hh1 hh2 ln chweight child_CH z_score* under* 
+:::
+
+```{r saving_ch}
+ch_dta %>% 
+  select(
+    ind_id,hl4,cage,hh1,hh2,ln,chweight,
+    child_CH, dplyr::starts_with("z_score"),
+    dplyr::starts_with("under"),dplyr::starts_with("stun"),
+    dplyr::starts_with("wast"),clenhei:fss
+  ) %>% 
+  write_csv(here("data","npl_CH.csv"))
+
+```
+
+Taking means (non weighted) of underwa, wasting and stunting for comparision.
+
+```{r comparision_ado}
+ch_dta %>% 
+  summarise(
+    mean_z_Scorewa = mean(z_scorewa, na.rm = T),
+    mean_underwa2 = mean(underwa2, na.rm = T),
+    mean_underwa3 = mean(underwa3, na.rm = T),
+    mean_stunting = mean(stunting, na.rm = T),
+    mean_stunting3 = mean(stunting3, na.rm = T),
+    mean_wasting = mean(wasting, na.rm = T),
+    mean_wasting3 = mean(wasting3, na.rm = T),
+  ) %>% 
+  knitr::kable()%>%
+  kableExtra::kable_styling()%>%
+  scroll_box(width = "100%", height = "400px")
+  
+  
+  
+  
 ```
 
