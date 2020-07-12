@@ -772,7 +772,8 @@ bh_dta %<>%
   group_by(ind_id) %>% 
   mutate(
     tbirths_ = max(bhln, na.rm = T)
-  )
+  ) %>% 
+  ungroup()
 
 bh_dta %>% 
   tabyl(bh5, bh9u, show_na = T) %>% 
@@ -835,11 +836,578 @@ subset_bh_dta %<>%
 names(subset_bh_dta)  
 ```
 
+:::statacode
+reshape wide bh5 bh9* dufive_, i(ind_id) j(bhln)
+
+egen tdufive = rowtotal(dufive_*)
+
+ta tdufive, m //1110+(289*2)+(3*74)+(4*20)+(5*7)+47 = 2072 deaths under five which coincide with the original dataset
+:::
 
 
 
+```{r reshape_bh}
+subset_bh_dta %<>%
+  pivot_wider(names_from = bhln,values_from = c(bh5_,dplyr::starts_with("bh9"),dufive_ ),names_sep = "")
+
+subset_bh_dta %<>%
+  mutate(
+    tdufive = rowSums(.[,c(68:79)],na.rm = T)
+  )
+
+subset_bh_dta %>% 
+  tabyl(tdufive, show_na = T) %>% 
+  gt()
+```
+
+:::statacode
+save "$workingfolder_out\npl14_BH.dta", replace
+:::
+
+```{r saving_subsetbh} 
+subset_bh_dta %>% 
+  write_csv(here("data","npl14_BH.csv"))
+```
+
+## Step 1.5 HL - Household Member Level
+
+:::statacode
+use "$workingfolder_in\hl.dta", clear
+
+rename _all, lower 
+:::
+
+```{r improt_hl}
+read_sav(here("data","hl.sav")) -> hl_dta
+
+clean_names(hl_dta) -> hl_dta
+```
+
+:::statacode
+gen country = "Nepal"
+
+gen year_published = "2014"
+
+gen year = 2014
+
+gen survey = "MICS"
+
+gen double hh_id = hh1*1000 + hh2 //Please check length of variables for a correct generation of
+the id variable//
+
+label var hh_id "Household ID"
+
+gen double ind_id = hh1*100000 + hh2*100 + hl1 //Please check length of variables for a correct
+generation of the id variable//
+
+label var ind_id "Individual ID"
+:::
 
 
+```{r ids_hl}
+hl_dta %<>%
+  mutate(
+    country = "Nepal",
+    year_published = "2014",
+    year = 2014,
+    survey = "MICS",
+    hh_id = structure(
+      hh1*1000 + hh2,
+      label = "Household ID"
+    ),
+    ind_id = structure(
+      hh1*100000 + hh2*100 + hl1,
+      label = "Individual ID"
+    )
+  )
+```
+
+
+## Data Merging (HL, WM, CH) & Control Variables
+
+### Step 1.6a: Data Merging - WM recode
+
+:::statacode
+merge 1:1 ind_id using "$workingfolder_out\npl14_WM.dta" 
+:::
+
+
+```{r join1}
+
+hl_dta %>% 
+  left_join(wm_dta %>% 
+  select(wb2, wm7, cm1, cm8, cm9a, cm9b, cm10, ma1, ma5,
+         ind_id, women_WM, wmweight, ta1:ta17),
+  by = c("ind_id" = "ind_id")
+) -> merged_data
+```
+
+
+:::statacode
+gen temp = (hl7>0)
+
+tab women_WM temp, miss col
+
+tab wm7 if temp==1 & women_WM==. //Total of eligible women not interviewed//
+
+ta hl6 hl4 if _m==1,m //only men and non-eligible women are not merged.
+
+drop temp _merge 
+:::
+
+
+```{r join1_tables}
+merged_data %<>%
+  mutate(
+    temp = hl7 >0
+  )
+
+merged_data %>% 
+  tabyl(women_WM, temp, show_na = T) %>% 
+  gt()
+
+merged_data %>% 
+  filter(temp ==1,is.na(women_WM)) %>% 
+  tabyl(wm7, show_na = T) 
+
+# there is no variable `_m`
+
+merged_data %<>%
+  select(-temp)
+```
+
+:::statacode
+merge m:1 hh_id using "$workingfolder_out\npl14_HH.dta"
+
+ta hh9 if _m==2,m
+
+drop if _merge==2
+
+drop _merge
+:::
+
+```{r join2}
+
+merged_data %<>%
+  left_join(hh_dta, by = c("hh_id" = "hh_id"))
+
+# there os no _m variable
+
+# there is no _merge variable
+```
+
+
+:::statacode
+merge 1:1 ind_id using "$workingfolder_out\npl14_CH.dta"
+
+count if ln==0 //The children without household line are unique to the CH Recode// 
+
+ta hl6 if _m==1,m //only 5 years old and older are not merged.
+
+replace hh_id = hh1*1000 + hh2 if ln==0 //Creates hd_id for children without household line, but
+this is not a problem //
+
+drop _merge 
+:::
+
+```{r join3}
+merged_data %<>%
+  left_join(ch_dta %>% 
+  select(
+    ind_id,hl4,cage,hh1,hh2,ln,chweight,
+    child_CH, dplyr::starts_with("z_score"),
+    dplyr::starts_with("under"),dplyr::starts_with("stun"),
+    dplyr::starts_with("wast"),clenhei:fss
+  ),
+  by = c("ind_id" = "ind_id")
+  )
+
+# there is no variable _m
+
+merged_data %<>%
+  mutate(
+    hh_id = ifelse(ln==0, hh1*1000+hh2,hh_id)
+  )
+
+# there is no variable _merge
+```
+
+:::statacode
+
+merge 1:1 ind_id using "$workingfolder_out\npl14_BH.dta"
+
+ta cm1 if _m==1,m //only those who have not given birth are not merged.
+
+drop _merge
+:::
+
+```{r join4}
+merged_data %<>%
+  left_join(subset_bh_dta, by = c("ind_id" = "ind_id"))
+
+#there are no variables by the name _m amd _merge
+```
+
+
+## Step 1.6: Create control variables if household has eligible members for WM and CH Levels
+
+:::statacode
+gen fem_eligible = (hl7>0)
+
+bys hh_id: egen hh_n_fem_eligible = sum(fem_eligible) //Number of eligible women for interview in
+the hh//
+
+gen no_fem_eligible = (hh_n_fem_eligible==0) //Takes value 1 if the household had no eligible females for an interview//
+
+label var no_fem_eligible "Household has no eligible women" 
+:::
+
+```{r control1} 
+merged_data %<>%
+  mutate(
+    fem_eligible = hl7>0
+  ) %>% 
+  group_by(hh_id) %>% 
+  mutate(
+    hh_n_fem_eligible = sum(fem_eligible,na.rm = T)
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    no_fem_eligible = structure(
+      hh_n_fem_eligible == 0,
+      label = "HOusehold has no eligible female"
+    )
+  )
+```
+
+
+:::statacode
+gen child_eligible = (hl7b>0 | child_CH==1) //line number for mother/caretake for children under five//
+
+bys hh_id: egen hh_n_children_eligible = sum(child_eligible) //Number of eligible children for anthropometrics//
+
+gen no_child_eligible = (hh_n_children_eligible==0) //Takes value 1 if there were no eligible children for anthropometrics//
+
+lab var no_child_eligible "Household has no children eligible" 
+:::
+
+```{r control2}
+merged_data %<>%
+  mutate(
+    child_eligible = (hl7b>0 | child_CH == 1)
+  ) %>% 
+  group_by(hh_id) %>% 
+  mutate(
+    hh_n_children_eligible = sum(child_eligible, na.rm = T)
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    no_child_eligible = structure(
+      hh_n_children_eligible ==0,
+      label = "Household has no children eligible")
+  )
+```
+
+
+:::statacode
+gen no_child_fem_eligible = (no_child_eligible==1 & no_fem_eligible==1)
+
+lab var no_child_fem_eligible "Household has no children or women eligible"
+:::
+
+```{r control3}
+merged_data %<>%
+  mutate(
+    no_child_fem_eligible = structure(
+      (no_child_eligible == 1 & no_fem_eligible ==1),
+      label = "Household has not children or women eligible"
+    )
+  )
+```
+
+:::statacode
+gen no_eligibles = (no_fem_eligible==1) //Takes value 1 if the household had no eligible members for an interview//
+
+lab var no_eligibles "Household has no eligible women" 
+:::
+
+
+```{r control4}
+merged_data %<>%
+  mutate(
+    no_eligible = structure(
+      (no_fem_eligible == 1),
+      label = "HOusehold has no eligible women")
+  )
+```
+
+
+:::statcode
+bys hh_id: gen id = _n
+
+count if id==1
+
+count
+
+count if no_eligible==1
+
+count if no_eligible==1 & id==1
+
+count if no_fem_eligible==1
+
+count if no_fem_eligible==1 & id==1
+
+count if no_child_eligible==1 
+
+count if no_child_eligible==1 & id==1
+
+count if no_child_fem_eligible==1
+
+count if no_child_fem_eligible==1 & id==1 
+:::
+
+```{r control5}
+merged_data %<>%
+  group_by(hh_id) %>% 
+  mutate(
+    id = n()
+  ) %>% 
+  ungroup()
+
+nrow(merged_data %>% filter(id == 1))
+
+nrow(merged_data %>% filter(no_eligible == 1))
+
+nrow(merged_data %>% filter(no_eligible == 1 & id == 1))
+
+nrow(merged_data %>% filter(no_fem_eligible == 1 ))
+
+nrow(merged_data %>% filter(no_fem_eligible == 1 & id == 1))
+
+nrow(merged_data %>% filter(no_child_eligible == 1 ))
+
+nrow(merged_data %>% filter(no_child_eligible == 1 & id == 1))
+
+nrow(merged_data %>% filter(no_child_fem_eligible == 1))
+
+nrow(merged_data %>% filter(no_child_fem_eligible == 1 & id == 1))
+```
+
+
+# Step 2: Data Preparation 
+
+## Standardization of 10 indicators and identification of deprived individuals
+
+
+:::statacode
+clonevar urban = hh6 //Type of place of residency: urban/rural//
+
+replace urban = 0 if urban == 2 //Redefine the coding and labels to 1/0//
+
+label define lab_urban 1 "urban" 0 "rural"
+
+label values urban lab_urban 
+
+clonevar relationship = hl3 //Relationship to the head of household/
+:::
+
+
+```{r urban_step2}
+merged_data %<>%
+  mutate(
+    urban = structure(
+      ifelse(hh6.x==2,0,hh6.x),
+      labels = c("urban" = 1, "rural" = 0) 
+    ),
+    relationship = hl3
+  )
+```
+
+:::statacode
+clonevar sex = hl4 //Sex household member//
+
+replace sex = 0 if sex==2 //Redefine the coding and labels to 1/0//
+
+replace sex = . if sex==9 //No missing values
+
+label define sex 1"male" 0 "female" 
+
+label val sex sex
+
+clonevar age = hl6 //Age household member//
+
+replace age = . if age==98 | age==99 // no missing values 
+
+:::
+
+```{r sex_step2}
+merged_data %<>%
+  mutate(
+    sex = structure(
+      ifelse(hl4.x==9,NA,
+             ifelse(hl4.x == 2, 0,hl4.x)),
+      labels = c("male" = 1, "female" = 0)
+    ),
+    age = ifelse((hl6 == 98|hl6==99),NA, hl6)
+  )
+```
+
+:::statacode
+by hh_id: gen temp = _n
+
+by hh_id: egen hhs = max(temp)
+
+label var hhs "Household size"
+
+drop temp
+
+decode hh7, gen(temp)
+
+encode temp, gen(region)
+:::
+
+```{r householdsize_step2}
+merged_data %<>%
+  group_by(hh_id) %>% 
+  mutate(
+    temp = n(),
+    hhs = structure(
+      max(temp, na.rm = T),
+      label = "Household size"
+    )
+  ) %>% 
+  ungroup() %>% 
+  select(-temp) %>% 
+  mutate(
+    region = hh7.x
+  )
+```
+
+## Step 2.3: Nutrition
+
+:::statacode
+gen hh_no_low_bmi = .
+
+gen f_low_bmi = .
+
+gen m_low_bmi = . 
+:::
+
+```{r nutri1}
+merged_data %<>%
+  mutate(
+    hh_no_low_bmi = NA,
+    f_low_bmi = NA,
+    m_low_bmi = NA
+  )
+```
+
+
+:::statacode
+bys hh_id: egen temp = max(underwa2)
+
+gen hh_no_underwa2 = (temp==0) //Takes value 1 if no child in the hh is underweighted, 0 if at least one is//
+
+replace hh_no_underwa2 = . if temp==.
+
+drop temp
+
+lab var hh_no_underwa2 "Household has no child under weight-for-age – 2 stdev" 
+
+replace hh_no_underwa2 = 1 if no_child_eligible==1
+:::
+
+
+```{r nutri2}
+merged_data %<>%
+  group_by(hh_id) %>% 
+  mutate(
+    temp = max(underwa2)
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    hh_no_underwa2 = structure(
+      ifelse(no_child_eligible==1,1,ifelse(is.na(temp),NA,(temp==0))),
+      label = "Household has no child under weight-for-age – 2 stdev")
+  ) %>% 
+  select(-temp)
+```
+
+
+:::statacode
+bys hh_id: egen temp = max(underwa3)
+
+gen hh_no_underwa3 = (temp==0) //Takes value 1 if no child in the hh is underweighted, 0 if at least one is//
+
+replace hh_no_underwa3 = . if temp==.
+
+replace hh_no_underwa3 = 1 if no_child_eligible==1
+
+lab var hh_no_underwa3 "Household has no child under weight-for-age - 3 stdev"
+
+drop temp 
+:::
+
+
+```{r nutri3}
+merged_data %<>%
+  group_by(hh_id) %>%
+  mutate(
+    temp = max(underwa3)
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    hh_no_underwa3 = structure(
+      ifelse(no_child_fem_eligible == 1, 1,
+             ifelse(is.na(temp),NA,temp ==0)),
+      label = "Household has no child under weight-for-age - 3 stdev"
+    )
+  ) %>% 
+  select(-temp)
+  
+```
+
+
+:::statacode
+gen hh_nutrition = hh_no_underwa2 
+
+label var hh_nutrition "Household has no child undernourished (weight-for-age)"
+
+replace hh_nutrition = 1 if no_child_eligible==1
+
+gen hh_nutrition_3_17 = hh_no_underwa3
+
+replace hh_nutrition_3_17 = 1 if no_child_eligible==1
+
+lab var hh_nutrition_3_17 "Household has no child undernourished (weight-for-age)" 
+:::
+
+```{r nutri4}
+merged_data %<>%
+  mutate(
+    hh_nutrition = structure(
+      ifelse(no_child_eligible == 1,1,hh_no_underwa2),
+      label = "Household has no child undernourished (weight-for-age)"
+    ),
+    hh_nutrition_3_17 = structure(
+      ifelse(no_child_eligible == 1,1,hh_no_underwa3),
+      label = "Household has no child undernourished (weight-for-age)"
+    )
+  )
+```
+
+
+
+## Nutri checkk 
+
+```{r fingerscrossed} 
+merged_data %>% 
+  summarise(
+    average_unweighted_hh_nutrition = mean(hh_nutrition,na.rm = T),
+    average_unweighted_hh_nutrition_3_17 =
+      mean(hh_nutrition_3_17,na.rm = T),
+  )
+```
 
 
 
