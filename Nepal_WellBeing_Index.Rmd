@@ -970,7 +970,12 @@ merged_data %>%
   filter(temp ==1,is.na(women_WM)) %>% 
   tabyl(wm7, show_na = T) 
 
-# there is no variable `_m`
+merged_data %>% 
+  filter(is.na(women_WM)) %>% 
+  tabyl(hl6, hl4, show_na = T) %>%
+  knitr::kable()%>%
+  kableExtra::kable_styling()%>%
+  scroll_box(width = "100%", height = "400px")
 
 merged_data %<>%
   select(-temp)
@@ -1022,11 +1027,19 @@ merged_data %<>%
   by = c("ind_id" = "ind_id")
   )
 
-# there is no variable _m
+merged_data %>% filter(ln == 0) %>% nrow()
+
+merged_data %>% 
+  filter(is.na(child_CH)) %>% 
+  tabyl(hl6,show_na = T) %>%
+  knitr::kable()%>%
+  kableExtra::kable_styling()%>%
+  scroll_box(width = "100%", height = "400px")
 
 merged_data %<>%
   mutate(
-    hh_id = ifelse(ln==0, hh1*1000+hh2,hh_id)
+    hh_id = ifelse(is.na(ln),hh_id,
+                   ifelse(ln == 0, hh1.x*1000+hh2.x, hh_id))
   )
 
 # there is no variable _merge
@@ -1044,6 +1057,10 @@ drop _merge
 ```{r join4}
 merged_data %<>%
   left_join(subset_bh_dta, by = c("ind_id" = "ind_id"))
+
+merged_data %>% 
+  filter(is.na(tdufive)) %>% 
+  tabyl(cm1, show_na = T)
 
 #there are no variables by the name _m amd _merge
 ```
@@ -1094,7 +1111,7 @@ lab var no_child_eligible "Household has no children eligible"
 ```{r control2}
 merged_data %<>%
   mutate(
-    child_eligible = (hl7b>0 | child_CH == 1)
+    child_eligible = (hl7b>0 | child_CH == 1) #
   ) %>% 
   group_by(hh_id) %>% 
   mutate(
@@ -1140,59 +1157,6 @@ merged_data %<>%
       label = "HOusehold has no eligible women")
   )
 ```
-
-
-:::statcode
-bys hh_id: gen id = _n
-
-count if id==1
-
-count
-
-count if no_eligible==1
-
-count if no_eligible==1 & id==1
-
-count if no_fem_eligible==1
-
-count if no_fem_eligible==1 & id==1
-
-count if no_child_eligible==1 
-
-count if no_child_eligible==1 & id==1
-
-count if no_child_fem_eligible==1
-
-count if no_child_fem_eligible==1 & id==1 
-:::
-
-```{r control5}
-merged_data %<>%
-  group_by(hh_id) %>% 
-  mutate(
-    id = n()
-  ) %>% 
-  ungroup()
-
-nrow(merged_data %>% filter(id == 1))
-
-nrow(merged_data %>% filter(no_eligible == 1))
-
-nrow(merged_data %>% filter(no_eligible == 1 & id == 1))
-
-nrow(merged_data %>% filter(no_fem_eligible == 1 ))
-
-nrow(merged_data %>% filter(no_fem_eligible == 1 & id == 1))
-
-nrow(merged_data %>% filter(no_child_eligible == 1 ))
-
-nrow(merged_data %>% filter(no_child_eligible == 1 & id == 1))
-
-nrow(merged_data %>% filter(no_child_fem_eligible == 1))
-
-nrow(merged_data %>% filter(no_child_fem_eligible == 1 & id == 1))
-```
-
 
 # Step 2: Data Preparation 
 
@@ -1318,16 +1282,17 @@ replace hh_no_underwa2 = 1 if no_child_eligible==1
 :::
 
 
-```{r nutri2}
+```{r nutri2, warning=FALSE}
 merged_data %<>%
   group_by(hh_id) %>% 
   mutate(
-    temp = max(underwa2)
+    temp = max(underwa2, na.rm = T)
   ) %>% 
   ungroup() %>% 
   mutate(
     hh_no_underwa2 = structure(
-      ifelse(no_child_eligible==1,1,ifelse(is.na(temp),NA,(temp==0))),
+      ifelse(no_child_eligible==1,1,ifelse(is.infinite(temp),
+                                           NA,(temp==0))),
       label = "Household has no child under weight-for-age – 2 stdev")
   ) %>% 
   select(-temp)
@@ -1353,13 +1318,13 @@ drop temp
 merged_data %<>%
   group_by(hh_id) %>%
   mutate(
-    temp = max(underwa3)
+    temp = max(underwa3, na.rm = T)
   ) %>% 
   ungroup() %>% 
   mutate(
     hh_no_underwa3 = structure(
       ifelse(no_child_fem_eligible == 1, 1,
-             ifelse(is.na(temp),NA,temp ==0)),
+             ifelse(is.infinite(temp),NA,temp ==0)),
       label = "Household has no child under weight-for-age - 3 stdev"
     )
   ) %>% 
