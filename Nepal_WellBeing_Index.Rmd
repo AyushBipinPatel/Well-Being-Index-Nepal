@@ -1314,7 +1314,7 @@ drop temp
 :::
 
 
-```{r nutri3}
+```{r nutri3, warning=FALSE}
 merged_data %<>%
   group_by(hh_id) %>%
   mutate(
@@ -1375,6 +1375,207 @@ merged_data %>%
 ```
 
 
+# covid-19 Indicators
+
+
+This section aims to create three covid-19 indicators:
+
+  * Overcrowding: A household is deprived if 3 or more people sleep/share the same room
+  * Hand washing: A household is deprived if the household does not have access to a soap and a handwashing facility 
+  * Multigeneration household: A household is deprived if it has member younger than 10 and older than 60 
+  
+These are the guidelines provided to create the covid-19 indicators. 
+
+## Overcrowding
+
+We have a indicator that provides house hold size. Another indicators that gives number of rooms used to sleep. We shall use these two variables to create the overcrowding indicators.
+
+```{r}
+attributes(merged_data$hc2)
+```
+
+99 in hc2 represents missing.  These values will be converted to `NAs`.
+
+
+```{r}
+merged_data %<>%
+  mutate(
+    hc2 = ifelse(hc2 == 99, NA, hc2)
+  )
+```
+
+
+```{r}
+merged_data %>% 
+  tabyl(hc2, hhs, show_na = T) %>%
+  knitr::kable()%>%
+  kableExtra::kable_styling()%>%
+  scroll_box(width = "100%", height = "400px")
+```
+
+There are no `NAs` in household size.
+
+The guideline for `overcrowding` is lucid. If there are 3 or more people that are sleeping or sharing a room, that HOusehold is deprived.
+
+We can arrive at this by using the varibales `hc2` and `hhs`. For a given household, if the ratio of `hhs/hc2` is greater than or equal to 3, that househld is overcrowded.
+
+
+```{r warning=FALSE}
+merged_data %<>%
+  group_by(hh_id) %>% 
+  mutate(
+    temp = hhs/hc2,
+    temp = ifelse(is.infinite(max(temp, na.rm = T)),
+                  NA,max(temp, na.rm = T))
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    hh_overcrowding = structure(
+      ifelse(is.na(temp),NA,
+             ifelse(temp >= 3,
+             0,1)),
+      label = "Household is not overcrowded",
+      lebels = c("Not Overcrowded" = 1,
+                 "Overcrowded" = 0)
+    )
+  ) %>% 
+  select(-temp)
+
+merged_data %>% 
+  tabyl(hh_overcrowding, show_na = T) %>% 
+  gt()
+```
+
+
+### overcrowding ckeck
+
+```{r}
+merged_data %>% 
+  summarise(
+    average_unweighted_overcrowding = mean(hh_overcrowding, na.rm = T)
+  )
+```
+
+
+## Handwashing
+
+
+```{r}
+attributes(merged_data$hw2a)
+```
+
+It is clear from the labels that toilet is considered equivalent to handwash facility.
+
+Following are the types of toilets. We shall consider those structures that fall under MDG as toilets. Households that are not haveing access to MDG toilet will b treated as not having access to toilet.
+
+```{r}
+attributes(merged_data$ws8)
+```
+
+
+```{r}
+attributes(merged_data$hw3a)
+```
+
+Changing 99 and 9 to `NAs` in `ws8` and `hw3a`
+
+
+```{r}
+merged_data %<>%
+  mutate(
+    ws8 = ifelse(ws8 == 99, NA, ws8),
+    hw3a = ifelse(hw3a == 9, NA, hw3a),
+    access_handwas_facility = ifelse(is.na(ws8),NA,
+                                     ifelse(ws8 <= 13 | (ws8 >=15 & ws8<= 22)|
+                                              ws8 == 31,1,0))
+  )
+
+merged_data %>% 
+  tabyl(access_handwas_facility, hw3a, show_na = T)
+```
+
+Creating the handwash indicator where a household is deprived is ther eis no access to soap and handwashing facility.
+
+```{r warning=FALSE}
+merged_data %<>%
+  group_by(hh_id) %>% 
+  mutate(
+    temp = access_handwas_facility == 1 & hw3a == 1,
+    temp = ifelse(is.infinite(max(temp, na.rm = T)),
+                  NA,max(temp, na.rm = T))
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    hh_handwashing = structure(
+      ifelse(is.na(temp),NA,ifelse(temp == 1, 1 ,0)),
+      label = "Household has access to soap and handwashing facility",
+      labels = c("Has Access to soap and handwash facility" = 1,
+                 "No Access to soap and handwash facility" = 0)
+    )
+  ) %>% 
+  select(-temp)
+
+merged_data %>% 
+  tabyl(hh_handwashing, show_na = T) %>% 
+  gt()
+```
+
+### Handwashing check
+
+```{r}
+merged_data %>% 
+  summarise(
+    average_unweighted_handwashing = mean(hh_handwashing, na.rm = T)
+  )
+```
+
+
+## Multigeneration household
+
+He we shall be using the `age` variable to create the `multigeneration` indicator.
+
+```{r}
+merged_data %>% 
+  tabyl(age, show_na = T) %>%
+  knitr::kable()%>%
+  kableExtra::kable_styling()%>%
+  scroll_box(width = "100%", height = "400px")
+```
+
+
+```{r}
+merged_data %<>%
+  group_by(hh_id) %>% 
+  mutate(
+    hh_multigeneration = structure(
+      ifelse(is.infinite(min(age, na.rm = T)) | 
+               is.infinite(max(age, na.rm = T)) ,NA,
+             ifelse(min(age, na.rm = T) < 10 & max(age,na.rm = T) > 60,
+             0,1)),
+      label = "Household is not multigenerational",
+      labels = c("Not Multigeneraion HH" = 1,
+                 "Multigeneration HH" = 0)
+    )
+  ) %>% 
+  ungroup()
+```
+
+
+```{r}
+merged_data %>% 
+  tabyl(hh_multigeneration, show_na = T) %>% 
+  gt()
+```
+
+### Handwashing check
+
+
+```{r}
+merged_data %>% 
+  summarise(
+    average_unweighted_multigeneration = mean(hh_multigeneration, na.rm = T)
+  )
+```
 
 
 
