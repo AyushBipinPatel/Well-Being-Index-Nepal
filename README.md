@@ -11,12 +11,12 @@ I have added boxes that contain equivalent (mirror) STATA code in the html docum
 
 ## Data
 
-The [`data` folder](/data) contains the data files.
+The `data` folder contains the data files.
 
 
 ## Stata code
 
-The Stata code is in [folder `do files`](/do files)
+The Stata code is in folder `do files`
 
 ## Output Files
 
