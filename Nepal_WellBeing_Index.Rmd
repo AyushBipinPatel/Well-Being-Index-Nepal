@@ -1461,37 +1461,26 @@ merged_data %>%
 
 
 ```{r}
-attributes(merged_data$hw2a)
+attributes(merged_data$hw2)
 ```
 
-It is clear from the labels that toilet is considered equivalent to handwash facility.
-
-Following are the types of toilets. We shall consider those structures that fall under MDG as toilets. Households that are not haveing access to MDG toilet will b treated as not having access to toilet.
-
-```{r}
-attributes(merged_data$ws8)
-```
 
 
 ```{r}
 attributes(merged_data$hw3a)
 ```
 
-Changing 99 and 9 to `NAs` in `ws8` and `hw3a`
+
+Changing 99 and 9 to `NAs` in `ws8`, `hw2` and `hw3a`
 
 
 ```{r}
 merged_data %<>%
   mutate(
-    ws8 = ifelse(ws8 == 99, NA, ws8),
+    hw2 = ifelse(hw2 == 9, NA, hw2),
     hw3a = ifelse(hw3a == 9, NA, hw3a),
-    access_handwas_facility = ifelse(is.na(ws8),NA,
-                                     ifelse(ws8 <= 13 | (ws8 >=15 & ws8<= 22)|
-                                              ws8 == 31,1,0))
   )
 
-merged_data %>% 
-  tabyl(access_handwas_facility, hw3a, show_na = T)
 ```
 
 Creating the handwash indicator where a household is deprived is ther eis no access to soap and handwashing facility.
@@ -1500,7 +1489,7 @@ Creating the handwash indicator where a household is deprived is ther eis no acc
 merged_data %<>%
   group_by(hh_id) %>% 
   mutate(
-    temp = access_handwas_facility == 1 & hw3a == 1,
+    temp =  hw3a == 1 & hw2 == 1,
     temp = ifelse(is.infinite(max(temp, na.rm = T)),
                   NA,max(temp, na.rm = T))
   ) %>% 
@@ -1544,20 +1533,34 @@ merged_data %>%
 
 
 ```{r}
-merged_data %<>%
+merged_data %<>% 
+  mutate(
+    member_less_10 = (hl6 <=10),
+    member_more_60 = (hl6 >=60),
+    member_between_11_59 = between(hl6,11,59)
+  ) %>% 
   group_by(hh_id) %>% 
   mutate(
+    hh_age10 = max(member_less_10),
+    hh_age60 = max(member_more_60),
+    hh_age1159 = max(member_between_11_59)
+  ) %>% 
+  ungroup()%>% 
+  mutate(
     hh_multigeneration = structure(
-      ifelse(is.infinite(min(age, na.rm = T)) | 
-               is.infinite(max(age, na.rm = T)) ,NA,
-             ifelse(min(age, na.rm = T) < 10 & max(age,na.rm = T) > 60,
-             0,1)),
+      ifelse((hh_age10 == 1 &
+                hh_age60 == 1 & 
+                hh_age1159 == 1),0,1),
       label = "Household is not multigenerational",
       labels = c("Not Multigeneraion HH" = 1,
                  "Multigeneration HH" = 0)
     )
-  ) %>% 
-  ungroup()
+  )
+
+merged_data %>% 
+  tabyl(hh_multigeneration, show_na = T) %>% 
+  gt()
+
 ```
 
 
@@ -1567,7 +1570,7 @@ merged_data %>%
   gt()
 ```
 
-### Handwashing check
+### Multigenerational check
 
 
 ```{r}
